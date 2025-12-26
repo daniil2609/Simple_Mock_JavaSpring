@@ -77,9 +77,18 @@ public class MainController {
                     maxLimit
             );
 
+            //Делаем рандомную задержку от 1сек до 2сек
+            int minSleep = 1000;
+            int maxSleep = 2000;
+            int randomSleep = random.nextInt(maxSleep - minSleep + 1) + minSleep;
+            Thread.sleep(randomSleep);
+
             //Делаем логирование
             log.info("********** Запрос/RequestDTO **********" + mapper.writerWithDefaultPrettyPrinter().writeValueAsString(requestDTO));  //преобразуем ссылочный тип нашего requestDTO в строку
-            log.info("********** Ответ/ResponseDTO **********" + mapper.writerWithDefaultPrettyPrinter().writeValueAsString(responseDTO)); //преобразуем ссылочный тип нашего responseDTO в строку
+            log.info("********** Задержка: " + randomSleep + " **********\n********** Ответ/ResponseDTO **********" + mapper.writerWithDefaultPrettyPrinter().writeValueAsString(responseDTO)); //преобразуем ссылочный тип нашего responseDTO в строку
+
+
+
 
             //Возвращаем Object responseDTO
             return responseDTO;

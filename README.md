@@ -1,4 +1,4 @@
-POST    http://localhost:8080/info/postBalances
+POST    http://localhost:8081/info/postBalances
 
 Пример запроса:
 {
