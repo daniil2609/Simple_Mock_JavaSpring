@@ -7,87 +7,104 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.web.bind.annotation.*;
-import tools.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Random;
+//import java.util.Random;
 
 @RestController
 public class MainController {
     private Logger log = LoggerFactory.getLogger(MainController.class);
     private ObjectMapper mapper = new ObjectMapper();
+    
+    @Autowired
+    private KafkaTemplate<String, String> kafkaTemplate;
+    
+    private static final String RESPONSE_TOPIC = "mock-responses";
+    private static final String REQUEST_TOPIC = "mock-requests";
 
-    //Можно разные методы заглушек использовать:
-    //@GetMapping
-    //@PutMapping
-    //@DeleteMapping
     @PostMapping(
-            value = "/info/postBalances",                       //путь до нашей заглушки
-            produces = MediaType.APPLICATION_JSON_VALUE,        //тип отправляемых данных
-            consumes = MediaType.APPLICATION_JSON_VALUE         //тип получаемых данных
+            value = "/info/postBalances",
+            produces = MediaType.APPLICATION_JSON_VALUE,
+            consumes = MediaType.APPLICATION_JSON_VALUE
     )
-    public Object postBalances(@RequestBody RequestDTO requestDTO){  //функция для приема и обработки запроса
+    public Object postBalances(@RequestBody RequestDTO requestDTO) {
         try {
-            String clientId = requestDTO.getClientId();         //получаем строку с номером клиента из запроса
-            char firstDigit = clientId.charAt(0);               //Находим первый символ в строке номера клиента
-            BigDecimal maxLimit;                                //устанавливаем переменную для максимального лимита
+            String clientId = requestDTO.getClientId();
+            char firstDigit = clientId.charAt(0);
+            BigDecimal maxLimit;
             String currency;
-            Random random = new Random();
+            //Random random = new Random();
             BigDecimal randomBalance;
 
-            //Эмулируем (преобразуем) необходимые данные:
             if (firstDigit == '8'){
-                maxLimit = new BigDecimal(2000);
-                currency = new String("US");
-                //Создаем рандомный BigDecimal balance
-                randomBalance = new BigDecimal("10.0").add(new BigDecimal(Math.random()).multiply(new BigDecimal("2000.0"))).setScale(2, RoundingMode.HALF_UP);
+                maxLimit = new BigDecimal(8888);
+                currency = "US";
+                randomBalance = new BigDecimal("10.0")
+                    .add(new BigDecimal(Math.random()).multiply(new BigDecimal("2000.0")))
+                    .setScale(2, RoundingMode.HALF_UP);
             } else if (firstDigit == '9') {
-                maxLimit = new BigDecimal(1000);
-                currency = new String("EU");
-                randomBalance = new BigDecimal("10.0").add(new BigDecimal(Math.random()).multiply(new BigDecimal("1000.0"))).setScale(2, RoundingMode.HALF_UP);
+                maxLimit = new BigDecimal(9999);
+                currency = "EU";
+                randomBalance = new BigDecimal("10.0")
+                    .add(new BigDecimal(Math.random()).multiply(new BigDecimal("1000.0")))
+                    .setScale(2, RoundingMode.HALF_UP);
             } else {
-                maxLimit = new BigDecimal(10000);
-                currency = new String("RUB");
-                randomBalance = new BigDecimal("10.0").add(new BigDecimal(Math.random()).multiply(new BigDecimal("10000.0"))).setScale(2, RoundingMode.HALF_UP);
+                maxLimit = new BigDecimal(1111);
+                currency = "RUB";
+                randomBalance = new BigDecimal("10.0")
+                    .add(new BigDecimal(Math.random()).multiply(new BigDecimal("10000.0")))
+                    .setScale(2, RoundingMode.HALF_UP);
             }
 
-            //После эмуляции данных передаем ответ:
-
-  /*        //Первый вариант конструктора
-            ResponseDTO responseDTO = new ResponseDTO();            //создаем экземпляр класса для ответа
-
-            responseDTO.setRqUID(requestDTO.getRqUID());            //передаем из запроса в ответ RqUID
-            responseDTO.setClientId(clientId);
-            responseDTO.setAccount(requestDTO.getAccount());
-            responseDTO.setCurrency(currency);                      //передаем рассчитанную переменную currency
-            responseDTO.setBalance(new BigDecimal(777));
-            responseDTO.setMaxLimit(maxLimit);*/
-
-
-            //Второй вариант конструктора (тут нужно создать конструктор в классе ResponceDTO)
             ResponseDTO responseDTO = new ResponseDTO(
-                    requestDTO.getRqUID(),                          //передаем из запроса в ответ RqUID
-                    clientId,                                       //передаем рассчитанную переменную clientId
+                    requestDTO.getRqUID(),
+                    clientId,
                     requestDTO.getAccount(),
                     currency,
-                    randomBalance,                                //передаем рандомный съэмулированный BigDecimal баланс
-                    //new BigDecimal(777),                        //передаем только что созданное значение BigDecimal для balance
+                    randomBalance,
                     maxLimit
             );
 
-            //Делаем логирование
-            log.info("********** Запрос/RequestDTO **********" + mapper.writerWithDefaultPrettyPrinter().writeValueAsString(requestDTO));  //преобразуем ссылочный тип нашего requestDTO в строку
-            log.info("********** Ответ/ResponseDTO **********" + mapper.writerWithDefaultPrettyPrinter().writeValueAsString(responseDTO)); //преобразуем ссылочный тип нашего responseDTO в строку
+            // 1. Логируем
+            String requestJson = mapper.writeValueAsString(requestDTO);
+            String responseJson = mapper.writeValueAsString(responseDTO);
+            
+            log.info("********** Запрос **********\n{}", requestJson);
+            log.info("********** Ответ **********\n{}", responseJson);
 
-            //Возвращаем Object responseDTO
+            // 2. Отправляем в Kafka (асинхронно, чтобы не блокировать HTTP ответ)
+            sendToKafkaAsync(REQUEST_TOPIC, requestDTO.getRqUID(), requestJson);
+            sendToKafkaAsync(RESPONSE_TOPIC, responseDTO.getRqUID(), responseJson);
+
+            // 3. Возвращаем HTTP ответ
             return responseDTO;
 
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());  //Возвращаем статус и тело нашей ошибки
+            log.error("Ошибка: ", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }
+    
 
-
+    private void sendToKafkaAsync(String topic, String key, String message) {
+        try {
+            kafkaTemplate.send(topic, key, message)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.warn("Kafka FAIL [{}]: {}", topic, ex.getMessage());
+                    } else {
+                        log.info("Kafka OK [{}]: {}", topic, key);
+                    }
+                });
+        } catch (Exception e) {
+            // Защита HTTP-потока
+            log.warn("Kafka exception ignored: {}", e.getMessage());
+        }
+    }
 }

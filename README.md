@@ -1,4 +1,51 @@
+docker-compose down -v            остановить/удалить контейнеры (запустить)
+docker-compose up -d --build      пересобрать контейнеры (остановить)
+
+
+mvn clean package                 пересобрать проект
+
+
+Ручное создание топиков:
+docker exec -it kafka kafka-topics \
+  --bootstrap-server kafka:9092 \
+  --create \
+  --if-not-exists \
+  --topic mock-requests \
+  --partitions 1 \
+  --replication-factor 1
+docker exec -it kafka kafka-topics \
+  --bootstrap-server kafka:9092 \
+  --create \
+  --if-not-exists \
+  --topic mock-responses \
+  --partitions 1 \
+  --replication-factor 1
+  
+  
+Как читать сообщения из Kafka?
+# 1. Зайдите в контейнер Kafka
+docker exec -it kafka /bin/bash
+
+# 2. Просмотр всех топиков
+kafka-topics --list --bootstrap-server localhost:9092
+
+# 3. Чтение всех сообщений из топика
+kafka-console-consumer \
+  --topic mock-requests \
+  --from-beginning \
+  --bootstrap-server localhost:9092
+
+
+
+
+
+
+
 POST    http://localhost:8080/info/postBalances
+GET     http://localhost:8081/actuator/health
+GET     http://localhost:8081/actuator/prometheus
+GET     http://localhost:8081/actuator
+GET     http://localhost:8081/actuator/info
 
 Пример запроса:
 {
